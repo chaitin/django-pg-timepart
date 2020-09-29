@@ -2,6 +2,7 @@ import logging
 from typing import Type
 
 from django.db import models
+
 from pg_partitioning.manager import ListPartitionManager, TimeRangePartitionManager
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ class ListPartitioning(_PartitioningBase):
 
     Parameters:
       partition_key(str): Partition key name, the type of the key must be one of boolean, text or integer.
+      check_partition_key_type(bool): Check Partition field validity, for example if you want partitioning by ForeignKey.
 
     Example:
       .. code-block:: python
@@ -73,10 +75,15 @@ class ListPartitioning(_PartitioningBase):
               timestamp = models.DateTimeField(default=timezone.now, primary_key=True)
     """
 
+    def __init__(self, partition_key: str, check_partition_key_type: bool = True, **options):
+        super().__init__(partition_key, **options)
+        self.check_partition_key_type = check_partition_key_type
+
     def __call__(self, model: Type[models.Model]):
         super().__call__(model)
-        support_field_types = [item.get_internal_type() for item in [models.TextField(), models.BooleanField(), models.IntegerField()]]
-        if model._meta.get_field(self.partition_key).get_internal_type() not in support_field_types:
-            raise NotImplementedError("The partition_key does not support this field type.")
+        if self.check_partition_key_type:
+            support_field_types = [item.get_internal_type() for item in [models.TextField(), models.BooleanField(), models.IntegerField()]]
+            if model._meta.get_field(self.partition_key).get_internal_type() not in support_field_types:
+                raise NotImplementedError("The partition_key does not support this field type.")
         model.partitioning = ListPartitionManager(model, self.partition_key, self.options)
         return model
